@@ -1,11 +1,15 @@
 const mysql = require("mysql");
 const post = require("./post");
+const tblogs = require("./tblogs");
+const posting = require("./posting");
+const users = require("./users");
 
 var db;
 
-process.title = "SAC";
+process.title = "TAP";
 
 const connect = () => {
+  console.log("database connect!");
   db = mysql.createConnection({
     host: process.env.MYSQL_HOST,
     user: process.env.MYSQL_USER,
@@ -24,20 +28,32 @@ const query = sql => {
     });
   });
 };
-const selectQuery = tableName => {
-  return query("SELECT * FROM " + tableName);
+const selectQuery = (tableName, where) => {
+  let sql = "SELECT * FROM " + tableName;
+  if (where) sql += where;
+  console.log(sql);
+  return query(sql);
 };
-const getFields = params => {
+const getFields = (params, tableName) => {
   const keys = Object.keys(params);
   let fields = "";
   keys.map((x, i) => {
-    fields += x + (i === keys.length - 1 ? "" : ", ");
+    fields += tableName + "." + x + (i === keys.length - 1 ? "" : ", ");
   });
   return fields;
 };
-const getValues = params => {
-  let ref = JSON.stringify(Object.keys(params).map(x => params[x]));
-  ref = ref.slice(1, -1);
+const getValues = (params, password) => {
+  let ref = "";
+  Object.keys(params).map((x, i) => {
+    let str = params[x];
+    if (password && password === x) {
+      str = `PASSWORD("${params[x]}")`;
+    } else {
+      str = `"${str}"`;
+    }
+    ref += str;
+    if (Object.keys(params).length - 1 !== i) ref += ", ";
+  });
   return ref;
 };
 const getValuesMulti = params => {
@@ -48,16 +64,18 @@ const getValuesMulti = params => {
   });
   return ref;
 };
-const insertQuery = (tableName, params) => {
+const insertQuery = (tableName, params, options) => {
   let sql;
   if (Array.isArray(params)) {
     sql = `INSERT INTO ${tableName} (${getFields(
-      params[0]
+      params[0],
+      tableName
     )}) VALUES ${getValuesMulti(params)}`;
   } else if (typeof params === "object") {
-    sql = `INSERT INTO ${tableName} (${getFields(params)}) VALUES (${getValues(
-      params
-    )})`;
+    sql = `INSERT INTO ${tableName} (${getFields(
+      params,
+      tableName
+    )}) VALUES (${getValues(params, options && options.password)})`;
   } else {
     console.log("insert params null");
     return undefined;
@@ -65,9 +83,37 @@ const insertQuery = (tableName, params) => {
   // console.log(sql);
   return query(sql);
 };
-// INSERT INTO 테이블이름(필드이름1, 필드이름2, 필드이름3, ...)
 
-//  VALUES (데이터값1, 데이터값2, 데이터값3, ...)
+const getUpdateField = params => {
+  const keys = Object.keys(params);
+  let str = "";
+  keys.map((field, index) => {
+    str += `${field}='${params[field]}'`;
+    str += keys.length - 1 === index ? "" : ", ";
+  });
+  console.log("getUpdateField", str);
+  return str;
+};
+
+const updateQuery = (tableName, params, where = "") => {
+  let sql;
+  if (typeof params === "object") {
+    sql = `UPDATE ${tableName} SET ${getUpdateField(params)}${where}`;
+  } else {
+    console.log("update params null");
+    return undefined;
+  }
+  // console.log(sql);
+  return query(sql);
+};
+
+const deleteQuery = (tableName, where = "") => {
+  let sql;
+  sql = `DELETE FROM ${tableName}${where}`;
+  console.log(sql);
+  return query(sql);
+};
+
 const cancel = () => {
   connect.end();
 };
@@ -76,6 +122,11 @@ exports.connect = connect;
 exports.query = query;
 exports.selectQuery = selectQuery;
 exports.insertQuery = insertQuery;
+exports.updateQuery = updateQuery;
+exports.deleteQuery = deleteQuery;
 exports.cancel = cancel;
 
 exports.post = post;
+exports.posting = posting;
+exports.tblogs = tblogs;
+exports.users = users;

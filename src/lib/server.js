@@ -1,28 +1,60 @@
-// const express = require("express");
-const database = require("./database");
+const express = require("express");
 const dotenv = require("dotenv");
-const crawler = require("./crawler");
-const translater = require("./translater");
-const schedule = require("node-schedule");
+const cors = require("cors");
+// const swaggerUi = require("swagger-ui-express");
+// const swaggerDocument = require("../../swagger.json");
 
+const handler = require("./handler");
+
+const app = express();
 dotenv.config();
 
-// const app = express();
+const start = route => {
+  console.log("TAP service start!");
 
-const start = (handler, route) => {
-  // app.get("/", function(req, res) {});
-  console.log("SAC service start!");
+  // process.setMaxListeners(10);
+  handler.schedule.start();
 
-  // handler.schedule(crawler, database, translater);
-  var scheduler = schedule.scheduleJob("* * */5 * * *", () => {
-    console.log("database connect!");
-    database.connect();
-    console.log(new Date(), "=> 크롤링 시작!");
+  // swagger 문서 설정
+  // app.use("/doc", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-    handler.schedule(crawler, database, translater);
+  // CORS 설정
+  app.use(cors());
+  // body use
+  app.use(express.json());
+
+  app.listen(process.env.PORT, () => {
+    // curl -X GET '127.0.0.1:3003/posts
+    console.log("listen port " + process.env.PORT);
   });
 
-  process.setMaxListeners(100);
-  // app.listen(3000, () => console.log("Server running on port 3000!"));
+  // 루트
+  app.get("/", function(req, res) {
+    return res.send("Hello word!");
+  });
+
+  // 에러 처리
+  app.use(function(err, req, res, next) {
+    console.error(err.stack);
+    res.status(500).send("Something broke!");
+  });
+
+  // 티스토리 블로그 인증
+  handler.tistory.auth(app);
+  // 티스트리 블로그 등록
+  handler.tistory.blogs(app);
+
+  // 디비 포스트
+  handler.posts.init(app);
+
+  // 자동 포스팅 목록 기능
+  handler.posting.init(app);
+
+  // 사용자 로그인, 블로그 등록
+  handler.user.init(app);
+
+  app.use("/error", err => {
+    console.log("error : ", err);
+  });
 };
 exports.start = start;
